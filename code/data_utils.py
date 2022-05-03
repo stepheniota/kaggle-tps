@@ -53,7 +53,7 @@ def positional_encoding(df):
     for i in range(10):
         df[f'ch{i}'] = df.f_27.str.get(i).apply(ord) - ord('A')
 
-    return df
+    return df.drop(["f_27"], axis=1)
 
 
 def data_pipeline(df, train=True):
