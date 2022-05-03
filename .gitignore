@@ -25,6 +25,8 @@ wandb/
 
 # Repo specific
 input/
+logs/
+submissions/
 
 #############
 ## ALLOWED ##
