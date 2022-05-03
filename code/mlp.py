@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -22,10 +23,8 @@ class MLP(nn.Module):
         self.layers = nn.Sequential(
             nn.Linear(in_features, 256),
             nn.ReLU(),
-            # nn.BatchNorm1d(256),
             nn.Linear(256, 128),
             nn.ReLU(),
-            # nn.BatchNorm1d(128),
             nn.Linear(128, out_features)
         )
 
@@ -38,9 +37,16 @@ class MLP(nn.Module):
 
 
 def cross_validate(config):
-    train_df = utils.training_data()
+    train_df = data_utils.training_data()
     X, y = data_utils.data_pipeline(train_df)
-    cv = utils.CrossValidator(X, y, n_splits=config.n_splits)
+    cv = data_utils.CrossValidator(X, y, n_splits=config.n_splits)
+
+    train_losses = np.zeros(config.n_epochs)
+    dev_losses = np.zeros(config.n_epochs)
+    train_accs = np.zeros(config.n_epochs)
+    dev_accs = np.zeros(config.n_epochs)
+    train_roc_scores = np.zeros(config.n_epochs)
+    dev_roc_scores = np.zeros(config.n_epochs)
 
     for fold, (traindata, devdata) in enumerate(cv):
         print(f"fold={fold}")
@@ -55,7 +61,7 @@ def cross_validate(config):
         devloader = DataLoader(
             devdata, shuffle=True, batch_size=config.batch_size)
 
-        for epoch in trange(config.n_epochs):
+        for epoch in range(config.n_epochs):
             trainloss, trainacc, trainroc = utils.train_batch(
                 net, trainloader, optimizer, criterion)
             devloss, devacc, devroc = utils.validate(
@@ -75,16 +81,35 @@ def cross_validate(config):
             print(f"\t{trainloss=:0.2f}, {trainacc=:0.2f}, {trainroc=:0.2f}")
             print(f"\t{devloss=:0.2f}, {devacc=:0.2f}, {devroc=:0.2f}")
 
+            train_losses[epoch] += trainloss
+            dev_losses[epoch] += devloss
+            train_accs[epoch] += trainacc
+            dev_accs[epoch] += devacc
+            train_roc_scores[epoch] += trainroc
+            dev_roc_scores[epoch] += devroc
+
+    train_losses /= config.n_epochs
+    dev_losses /= config.n_epochs
+    train_accs /= config.n_epochs
+    dev_accs /= config.n_epochs
+    train_roc_scores /= config.n_epochs
+    dev_roc_scores /= config.n_epochs
+
+    wandb.log({
+        "ave/train/loss": train_losses,
+        "ave/dev/loss": dev_losses,
+        "ave/train/accs": train_accs,
+        "ave/dev/accs": dev_accs,
+        "ave/train/roc_auc": train_roc_scores,
+        "ave/dev/roc_auc": dev_roc_scores
+    })
 
 def train(config):
-    train_df = utils.training_data()
-    # test_df = utils.test_data()
+    train_df = data_utils.training_data()
     X_train, y_train = data_utils.data_pipeline(train_df, train=True)
-    # X_test, _ = data_utils.data_pipeline(test_df, train=False)
 
     traindata = TensorDataset(torch.tensor(X_train, dtype=torch.float),
                               torch.tensor(y_train))
-    # testdata = TensorDataset(torch.tensor(X_test, dtype=torch.float))
 
     net = MLP(in_features=X_train.shape[1], out_features=2, return_logits=True)
     optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
@@ -94,8 +119,6 @@ def train(config):
 
     trainloader = DataLoader(
         traindata, shuffle=True, batch_size=config.batch_size)
-    # testloader = DataLoader(
-    #     testdata, shuffle=False, batch_size=len(testdata))
 
     for epoch in trange(config.n_epochs):
         trainloss, trainacc, trainroc = utils.train_batch(
@@ -116,7 +139,7 @@ def train(config):
                           file_name=f"logs/mlp-{wandb.run.name}.pt")
 
 def predict(statedict_path):
-    test_df = utils.test_data()
+    test_df = data_utils.test_data()
     X_test, _ = data_utils.data_pipeline(test_df, train=False)
     testdata = TensorDataset(torch.tensor(X_test, dtype=torch.float))
     testloader = DataLoader(testdata, shuffle=False, batch_size=64)
@@ -128,13 +151,6 @@ def predict(statedict_path):
     net.return_logits = False
 
     predictions = utils.inference(net, testloader)
-    # net.eval()
-    # with torch.no_grad():
-    #     predictions = []
-    #     for (inp,) in testloader:
-    #         probabilites = net(inp).detach()[:,1]
-    #         predictions.extend(probabilites.tolist())
-
     utils.register_predictions(predictions)
 
 

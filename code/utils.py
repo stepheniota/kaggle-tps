@@ -13,36 +13,6 @@ TESTPATH = Path("../input/test.csv")
 SUBMISSIONPATH = Path("../input/sample_submission.csv")
 
 
-class CrossValidator:
-    def __init__(self, X, y, n_splits=5, seed=None):
-        self.X = X
-        self.y = y
-        self.n_splits = n_splits
-        self.seed = seed
-        self.skf = model_selection.StratifiedKFold(
-            n_splits=n_splits, random_state=seed)
-
-    def __iter__(self):
-        for train_idx, dev_idx in self.skf.split(self.X, self.y):
-            X_train, X_dev = self.X[train_idx], self.X[dev_idx]
-            y_train, y_dev = self.y[train_idx], self.y[dev_idx]
-
-            traindata = TensorDataset(
-                torch.tensor(X_train, dtype=torch.float), torch.tensor(y_train))
-            devdata = TensorDataset(
-                torch.tensor(X_dev, dtype=torch.float), torch.tensor(y_dev))
-
-            yield traindata, devdata
-
-
-def training_data(**kwargs):
-    return pd.read_csv(TRAINPATH, index_col=0, **kwargs)
-
-
-def test_data(**kwargs):
-    return pd.read_csv(TESTPATH, index_col=0, **kwargs)
-
-
 def accuracy_score_logits(logits, true, normalize=False):
     score = torch.sum(true == logits.argmax(dim=1)).item()
 
