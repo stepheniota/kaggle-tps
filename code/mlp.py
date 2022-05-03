@@ -41,19 +41,11 @@ def cross_validate(config):
     X, y = data_utils.data_pipeline(train_df)
     cv = data_utils.CrossValidator(X, y, n_splits=config.n_splits)
 
-    train_losses = np.zeros(config.n_epochs)
-    dev_losses = np.zeros(config.n_epochs)
-    train_accs = np.zeros(config.n_epochs)
-    dev_accs = np.zeros(config.n_epochs)
-    train_roc_scores = np.zeros(config.n_epochs)
-    dev_roc_scores = np.zeros(config.n_epochs)
-
     for fold, (traindata, devdata) in enumerate(cv):
-        print(f"fold={fold}")
+        print(f"\tfold={fold}")
         net = MLP(in_features=X.shape[1], out_features=2, return_logits=True)
         optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
         criterion = nn.CrossEntropyLoss()
-
         wandb.watch(net)
 
         trainloader = DataLoader(
@@ -61,48 +53,45 @@ def cross_validate(config):
         devloader = DataLoader(
             devdata, shuffle=True, batch_size=config.batch_size)
 
+        train_losses = dev_losses = train_accs = dev_accs = 0.
+        train_roc_scores = dev_roc_scores = 0.
+
         for epoch in range(config.n_epochs):
             trainloss, trainacc, trainroc = utils.train_batch(
                 net, trainloader, optimizer, criterion)
             devloss, devacc, devroc = utils.validate(
                 net, devloader, criterion)
 
-            wandb.log({
-                f"fold{fold}/train/loss": trainloss,
-                f"fold{fold}/train/acc": trainacc,
-                f"fold{fold}/train/roc_auc": trainroc,
-                f"fold{fold}/dev/loss": devloss,
-                f"fold{fold}/dev/acc": devacc,
-                f"fold{fold}/dev/roc_auc": devroc,
-                f"fold{fold}/epoch": epoch
-            })
+            wandb.log(
+                {f"fold{fold}/train/loss": trainloss,
+                 f"fold{fold}/train/acc": trainacc,
+                 f"fold{fold}/train/roc_auc": trainroc,
+                 f"fold{fold}/dev/loss": devloss,
+                 f"fold{fold}/dev/acc": devacc,
+                 f"fold{fold}/dev/roc_auc": devroc,},
+                step=epoch
+            )
 
-            print(f"{epoch=}")
-            print(f"\t{trainloss=:0.2f}, {trainacc=:0.2f}, {trainroc=:0.2f}")
-            print(f"\t{devloss=:0.2f}, {devacc=:0.2f}, {devroc=:0.2f}")
+            print(f"\t{epoch=}")
+            print(f"\t\t{trainloss=:0.2f}, {trainacc=:0.2f}, {trainroc=:0.2f}")
+            print(f"\t\t{devloss=:0.2f}, {devacc=:0.2f}, {devroc=:0.2f}")
 
-            train_losses[epoch] += trainloss
-            dev_losses[epoch] += devloss
-            train_accs[epoch] += trainacc
-            dev_accs[epoch] += devacc
-            train_roc_scores[epoch] += trainroc
-            dev_roc_scores[epoch] += devroc
+            train_losses += trainloss
+            dev_losses += devloss
+            train_accs += trainacc
+            dev_accs += devacc
+            train_roc_scores += trainroc
+            dev_roc_scores += devroc
 
-    train_losses /= config.n_epochs
-    dev_losses /= config.n_epochs
-    train_accs /= config.n_epochs
-    dev_accs /= config.n_epochs
-    train_roc_scores /= config.n_epochs
-    dev_roc_scores /= config.n_epochs
-
-    wandb.log({
-        "ave/train/loss": train_losses,
-        "ave/dev/loss": dev_losses,
-        "ave/train/accs": train_accs,
-        "ave/dev/accs": dev_accs,
-        "ave/train/roc_auc": train_roc_scores,
-        "ave/dev/roc_auc": dev_roc_scores
-    })
+        wandb.log(
+            {"ave/train/loss": train_losses/config.n_splits,
+             "ave/dev/loss": dev_losses / config.n_splits,
+             "ave/train/accs": train_accs / config.n_splits,
+             "ave/dev/accs": dev_accs / config.n_splits,
+             "ave/train/roc_auc": train_roc_scores / config.n_splits,
+             "ave/dev/roc_auc": dev_roc_scores / config.n_splits,},
+            step=fold,
+        )
 
 def train(config):
     train_df = data_utils.training_data()
@@ -124,15 +113,13 @@ def train(config):
         trainloss, trainacc, trainroc = utils.train_batch(
             net, trainloader, optimizer, criterion)
 
-        wandb.log({
-            f"train/loss": trainloss,
-            f"train/acc": trainacc,
-            f"train/roc_auc": trainroc,
-            f"epoch": epoch
-        })
+        wandb.log({"train/loss": trainloss,
+                   "train/acc": trainacc,
+                   "train/roc_auc": trainroc,},
+                   step=epoch)
 
-        print(f"{epoch=}")
-        print(f"\t{trainloss=:0.2f}, {trainacc=:0.2f}")
+        print(f"\t{epoch=}")
+        print(f"\t\t{trainloss=:0.2f}, {trainacc=:0.2f}")
 
     utils.save_checkpoint(net.state_dict(),
                           optimizer.state_dict(),
