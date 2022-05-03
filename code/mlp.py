@@ -144,18 +144,18 @@ if __name__ == "__main__":
     if mode == "test": assert argc == 3
 
     config = dict(batch_size=32,
-                  lr=1e-3,
+                  lr=3e-4,
                   n_splits=5,
                   n_epochs=10)
 
-    if mode == "cv" or "train":
+    if mode == "test":
+        predict(sys.argv[2])
+    elif mode == "cv" or mode == "train":
         with wandb.init(project="may2022-tabular-kaggle", config=config):
             config = wandb.config
             if mode == "cv":
                 cross_validate(config)
             else:
                 train(config)
-    elif mode == "test":
-        predict(sys.argv[2])
     else:
         raise ValueError
