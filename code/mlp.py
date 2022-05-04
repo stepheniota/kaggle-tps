@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -36,25 +38,31 @@ class MLP(nn.Module):
         return out
 
 
-def cross_validate(config):
+def cross_validate(config_):
     train_df = data_utils.training_data()
     X, y = data_utils.data_pipeline(train_df)
-    cv = data_utils.CrossValidator(X, y, n_splits=config.n_splits)
+    cv = data_utils.CrossValidator(X, y, n_splits=config_.n_splits)
 
     for fold, (traindata, devdata) in enumerate(cv):
+        run = wandb.init(project="may2022-tabular-kaggle",
+                         group="testing_cv",
+                         config=config_._asdict(),
+                         notes=f"Cross validation fold {fold}.")
+
+        config = wandb.config
+
         print(f"\tfold={fold}")
         net = MLP(in_features=X.shape[1], out_features=2, return_logits=True)
         optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
         criterion = nn.CrossEntropyLoss()
-        # wandb.watch(net)
 
         trainloader = DataLoader(
             traindata, shuffle=True, batch_size=config.batch_size)
         devloader = DataLoader(
             devdata, shuffle=True, batch_size=config.batch_size)
 
-        train_losses = dev_losses = train_accs = dev_accs = 0.
-        train_roc_scores = dev_roc_scores = 0.
+        # train_losses = dev_losses = train_accs = dev_accs = 0.
+        # train_roc_scores = dev_roc_scores = 0.
 
         for epoch in range(config.n_epochs):
             trainloss, trainacc, trainroc = utils.train_batch(
@@ -63,35 +71,41 @@ def cross_validate(config):
                 net, devloader, criterion)
 
             wandb.log(
-                {f"fold{fold}/train/loss": trainloss,
-                 f"fold{fold}/train/acc": trainacc,
-                 f"fold{fold}/train/roc_auc": trainroc,
-                 f"fold{fold}/dev/loss": devloss,
-                 f"fold{fold}/dev/acc": devacc,
-                 f"fold{fold}/dev/roc_auc": devroc,},
+                {f"train/loss": trainloss,
+                 f"train/acc": trainacc,
+                 f"train/roc_auc": trainroc,
+                 f"dev/loss": devloss,
+                 f"dev/acc": devacc,
+                 f"dev/roc_auc": devroc,},
             )
 
             print(f"\t{epoch=}")
             print(f"\t\t{trainloss=:0.2f}, {trainacc=:0.2f}, {trainroc=:0.2f}")
             print(f"\t\t{devloss=:0.2f}, {devacc=:0.2f}, {devroc=:0.2f}")
 
-            train_losses += trainloss
-            dev_losses += devloss
-            train_accs += trainacc
-            dev_accs += devacc
-            train_roc_scores += trainroc
-            dev_roc_scores += devroc
+        #     train_losses += trainloss
+        #     dev_losses += devloss
+        #     train_accs += trainacc
+        #     dev_accs += devacc
+        #     train_roc_scores += trainroc
+        #     dev_roc_scores += devroc
 
-        wandb.log(
-            {"ave/train/loss": train_losses/config.n_splits,
-             "ave/dev/loss": dev_losses / config.n_splits,
-             "ave/train/accs": train_accs / config.n_splits,
-             "ave/dev/accs": dev_accs / config.n_splits,
-             "ave/train/roc_auc": train_roc_scores / config.n_splits,
-             "ave/dev/roc_auc": dev_roc_scores / config.n_splits,},
-        )
+        # wandb.log(
+        #     {"ave/train/loss": train_losses/config.n_splits,
+        #      "ave/dev/loss": dev_losses / config.n_splits,
+        #      "ave/train/accs": train_accs / config.n_splits,
+        #      "ave/dev/accs": dev_accs / config.n_splits,
+        #      "ave/train/roc_auc": train_roc_scores / config.n_splits,
+        #      "ave/dev/roc_auc": dev_roc_scores / config.n_splits,},
+        # )
+
+        if 2 == fold:
+            return
 
 def train(config):
+    run = wandb.init(project="may2022-tabular-kaggle", config=config._asdict())
+    config = wandb.config
+
     train_df = data_utils.training_data()
     X_train, y_train = data_utils.data_pipeline(train_df, train=True)
 
@@ -101,8 +115,6 @@ def train(config):
     net = MLP(in_features=X_train.shape[1], out_features=2, return_logits=True)
     optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
-
-    # wandb.watch(net)
 
     trainloader = DataLoader(
         traindata, shuffle=True, batch_size=config.batch_size)
@@ -120,7 +132,9 @@ def train(config):
 
     utils.save_checkpoint(net.state_dict(),
                           optimizer.state_dict(),
-                          file_name=f"logs/mlp-{wandb.run.name}.pt")
+                          file_name=f"logs/mlp-{run.name}.pt")
+
+    wandb.finish()
 
 def predict(statedict_path):
     test_df = data_utils.test_data()
@@ -139,23 +153,24 @@ def predict(statedict_path):
 
 
 if __name__ == "__main__":
-    import sys; argc = len(sys.argv); mode = sys.argv[1]
-    assert argc > 1 and mode in ("cv", "train", "test")
-    if mode == "test": assert argc == 3
+    import argparse
 
-    config = dict(batch_size=32,
-                  lr=3e-4,
-                  n_splits=5,
-                  n_epochs=10)
+    parser = argparse.ArgumentParser("Train MLP on tabular data.")
+    parser.add_argument(
+        "--mode", "-m", type=str, choices=("test", "train", "cv"))
+    parser.add_argument("--checkpoint", "-c", type=str, required=False)
+    args = parser.parse_args()
 
-    if mode == "test":
-        predict(sys.argv[2])
-    elif mode == "cv" or mode == "train":
-        with wandb.init(project="may2022-tabular-kaggle", config=config):
-            config = wandb.config
-            if mode == "cv":
-                cross_validate(config)
-            else:
-                train(config)
+    config = dict(batch_size=32, lr=3e-4, n_splits=5, n_epochs=11)
+    config = namedtuple("Params", config.keys())(**config)
+
+
+    if args.mode == "test":
+        assert args.checkpoint is not None
+        predict(args.checkpoint)
+    elif args.mode == "cv":
+        cross_validate(config)
+    elif args.mode == "train":
+        train(config)
     else:
         raise ValueError

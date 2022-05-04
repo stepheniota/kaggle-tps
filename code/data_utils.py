@@ -53,11 +53,12 @@ def positional_encoding(df):
     for i in range(10):
         df[f'ch{i}'] = df.f_27.str.get(i).apply(ord) - ord('A')
 
+    df["unique_characters"] = df.f_27.apply(lambda s: len(set(s)))
     return df.drop(["f_27"], axis=1)
 
 
 def data_pipeline(df, train=True):
-    df = char2count_encoding(df)
+    df = positional_encoding(df)
 
     if train:
         X = df.drop("target", axis=1).values
