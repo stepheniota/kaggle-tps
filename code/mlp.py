@@ -46,7 +46,7 @@ def cross_validate(config):
         net = MLP(in_features=X.shape[1], out_features=2, return_logits=True)
         optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
         criterion = nn.CrossEntropyLoss()
-        wandb.watch(net)
+        # wandb.watch(net)
 
         trainloader = DataLoader(
             traindata, shuffle=True, batch_size=config.batch_size)
@@ -69,7 +69,6 @@ def cross_validate(config):
                  f"fold{fold}/dev/loss": devloss,
                  f"fold{fold}/dev/acc": devacc,
                  f"fold{fold}/dev/roc_auc": devroc,},
-                step=epoch
             )
 
             print(f"\t{epoch=}")
@@ -90,7 +89,6 @@ def cross_validate(config):
              "ave/dev/accs": dev_accs / config.n_splits,
              "ave/train/roc_auc": train_roc_scores / config.n_splits,
              "ave/dev/roc_auc": dev_roc_scores / config.n_splits,},
-            step=fold,
         )
 
 def train(config):
@@ -104,7 +102,7 @@ def train(config):
     optimizer = torch.optim.Adam(net.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
 
-    wandb.watch(net)
+    # wandb.watch(net)
 
     trainloader = DataLoader(
         traindata, shuffle=True, batch_size=config.batch_size)
@@ -115,8 +113,7 @@ def train(config):
 
         wandb.log({"train/loss": trainloss,
                    "train/acc": trainacc,
-                   "train/roc_auc": trainroc,},
-                   step=epoch)
+                   "train/roc_auc": trainroc,},)
 
         print(f"\t{epoch=}")
         print(f"\t\t{trainloss=:0.2f}, {trainacc=:0.2f}")
