@@ -6,11 +6,11 @@ This month's TPS is a binary classification problem,
 an opportunity to explore various methods for identifying and exploiting
 feature interactions.
 
-## Data
+### Data
 We are given (simulated) manufacturing control data and are asked to predict
 whether the machine is in state `0` or state `1`.
 
-### Files
+#### Files
 The datafiles can be downloaded using the `kaggle-cli`.
 ```
 mkdir input && cd input
@@ -21,18 +21,7 @@ kaggle competitions download -c tabular-playground-series-may-2022
 * `sample_submission.csv` - a sample submission file in the correct format.
 
 
-## Evaluation
+### Evaluation
 Submissions are evaluated on [area under the ROC curve](https://en.wikipedia.org/wiki/Receiver_operating_characteristic) between the predicted probability and the observed target.
 
 
-<!--
-### Submission File
-Each id in the test set much have a corresponding predicted probability for the target variable. The submission file should contain a header and have the following format.
-```
-id,target
-900000,0.65
-900001,0.97
-900002,0.02
-...
-```
--->
