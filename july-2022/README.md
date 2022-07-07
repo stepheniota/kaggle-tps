@@ -1,7 +1,7 @@
 # Kaggle TPS - July 2022
 
-This month's **Tabular Playground Series** competition is Kaggle's first ever
-unsupervised clustering challenge!
+This month's **Tabular Playground Series** competition is an unsupervised
+clustering challeng (Kaggle's first ever!).
 In the given dataset, each row belongs to a particular cluster.
 Without any training data (no ground truth labels, no number of clusters), we
 are tasked to predict which cluster each row belongs to.
